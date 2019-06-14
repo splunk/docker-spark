@@ -1,9 +1,5 @@
 # Makefile for Splunk Spark Docker image
 
-.PHONY: all splunk-spark
-
-all: splunk-spark
-
-splunk-spark:
+all:
 	@echo Building splunk-spark image
-	@docker build -t splunk-spark .
+	@docker build -t splunk/spark .

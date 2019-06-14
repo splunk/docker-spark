@@ -15,10 +15,13 @@
 #
 # Prepare new files in a temporary base image
 #
-FROM alpine as package
+FROM registry.access.redhat.com/ubi8/ubi-minimal as package
 
 ARG SPARK_URL=https://archive.apache.org/dist/spark/spark-2.3.0/spark-2.3.0-bin-hadoop2.7.tgz
 ARG JDK_URL=https://github.com/AdoptOpenJDK/openjdk8-binaries/releases/download/jdk8u212-b04/OpenJDK8U-jre_x64_linux_hotspot_8u212b04.tar.gz
+
+# install necessary tools
+RUN microdnf update && microdnf install -y wget tar gzip
 
 # download and install Spark
 RUN wget -O /tmp/spark.tgz $SPARK_URL
@@ -42,7 +45,7 @@ RUN chmod -R a+r /opt/spark
 #
 # Create final image
 #
-FROM alpine
+FROM registry.access.redhat.com/ubi8/ubi-minimal
 LABEL maintainer="support@splunk.com"
 
 # setup environment variables
@@ -65,11 +68,11 @@ ARG UID=41812
 ARG GID=41812
 
 # add splunk user and group
-RUN addgroup -S -g ${GID} ${SPLUNK_GROUP} \
-    && adduser -S -u ${UID} -G ${SPLUNK_GROUP} -s /sbin/nologin -h ${SPLUNK_HOME} ${SPLUNK_USER} \
+RUN microdnf update && microdnf install -y --nodocs shadow-utils hostname \
+    && groupadd -r -g ${GID} ${SPLUNK_GROUP} \
+    && useradd -r -m -u ${UID} -g ${GID} -s /sbin/nologin -d ${SPLUNK_HOME} ${SPLUNK_USER} \
     && mkdir -p /mnt/jdk /mnt/spark \
-    && chown -R splunk.splunk ${SPLUNK_HOME} /mnt/jdk /mnt/spark \
-    && apk add --no-cache bash
+    && chown -R splunk.splunk ${SPLUNK_HOME} /mnt/jdk /mnt/spark
 
 # copy package files
 COPY --from=package --chown=splunk:splunk /opt /opt
