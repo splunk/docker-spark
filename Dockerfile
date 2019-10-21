@@ -46,7 +46,13 @@ RUN chmod -R a+r /opt/spark
 # Create final image
 #
 FROM registry.access.redhat.com/ubi8/ubi-minimal
-LABEL maintainer="support@splunk.com"
+LABEL LABEL name="splunk" \
+      maintainer="support@splunk.com" \
+      vendor="splunk" \
+      version="0.0.1" \
+      release="1" \
+      summary="" \
+      description=""
 
 # setup environment variables
 ENV JAVA_HOME=/opt/jdk
@@ -68,7 +74,10 @@ ARG UID=41812
 ARG GID=41812
 
 # add splunk user and group
-RUN microdnf update && microdnf install -y --nodocs shadow-utils hostname \
+RUN mkdir /licenses \
+    && curl -o /licenses/apache-2.0.txt https://www.apache.org/licenses/LICENSE-2.0.txt \
+    && curl -o /licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+	&& microdnf update && microdnf install -y --nodocs shadow-utils hostname \
     && groupadd -r -g ${GID} ${SPLUNK_GROUP} \
     && useradd -r -m -u ${UID} -g ${GID} -s /sbin/nologin -d ${SPLUNK_HOME} ${SPLUNK_USER} \
     && mkdir -p /mnt/jdk /mnt/spark \
