@@ -46,13 +46,13 @@ RUN chmod -R a+r /opt/spark
 # Create final image
 #
 FROM registry.access.redhat.com/ubi8/ubi-minimal
-LABEL LABEL name="splunk" \
+LABEL name="splunk" \
       maintainer="support@splunk.com" \
       vendor="splunk" \
       version="0.0.1" \
       release="1" \
-      summary="" \
-      description=""
+      summary="Spark image for Splunk DFS" \
+      description="Custom image that includes JRE and Spark"
 
 # setup environment variables
 ENV JAVA_HOME=/opt/jdk
