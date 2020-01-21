@@ -77,7 +77,8 @@ ARG GID=41812
 RUN mkdir /licenses \
     && curl -o /licenses/apache-2.0.txt https://www.apache.org/licenses/LICENSE-2.0.txt \
     && curl -o /licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
-	&& microdnf update && microdnf install -y --nodocs shadow-utils hostname \
+	  && mkdir -p /run/user/$(id -u `whoami`) \
+    && microdnf update && microdnf install -y --nodocs shadow-utils hostname \
     && groupadd -r -g ${GID} ${SPLUNK_GROUP} \
     && useradd -r -m -u ${UID} -g ${GID} -s /sbin/nologin -d ${SPLUNK_HOME} ${SPLUNK_USER} \
     && mkdir -p /mnt/jdk /mnt/spark \
