@@ -68,7 +68,8 @@ ARG UID=41812
 ARG GID=41812
 
 # add splunk user and group
-RUN microdnf update && microdnf install -y --nodocs shadow-utils hostname \
+RUN mkdir -p /run/user/$(id -u `whoami`)\
+    && microdnf update && microdnf install -y shadow-utils hostname \
     && groupadd -r -g ${GID} ${SPLUNK_GROUP} \
     && useradd -r -m -u ${UID} -g ${GID} -s /sbin/nologin -d ${SPLUNK_HOME} ${SPLUNK_USER} \
     && mkdir -p /mnt/jdk /mnt/spark \
