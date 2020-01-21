@@ -10,3 +10,4 @@ jobs:
       - run: 
           name: Build image
           command: make
+
