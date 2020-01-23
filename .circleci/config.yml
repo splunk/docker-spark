@@ -1,13 +1,109 @@
-version: 2
+# See https://circleci.com/blog/using-circleci-workflows-to-replicate-docker-hub-automated-builds/
+version: 2.1
+workflows:
+  version: 2
+  build-and-push:
+    jobs:
+      - build
+      - push-latest:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - master
+      - push-edge:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - develop
+      - push-release:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^\d+\.\d+\.\d+/
+            branches:
+              ignore: /.*/
+executors:
+  docker-publisher:
+    environment:
+      IMAGE_NAME: splunk/spark
+      IMAGE_FILENAME: splunk-spark
+    docker:
+      - image: circleci/buildpack-deps:buster
+commands:
+  save_image:
+    description: "Save image"
+    steps:
+      - run: 
+          command: |
+            mkdir -p /tmp/images
+            docker image save -o /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar ${IMAGE_NAME}:${CIRCLE_SHA1}
+  push_image:
+    description: "Load, tag and push an image"
+    parameters:
+      tag:
+        type: string
+    steps:
+      - run: 
+          name: Load image
+          command: |
+            docker load /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar
+      - run: 
+          name: Tag image
+          command: |
+            docker tag ${IMAGE_NAME}:${CIRCLE_SHA1} ${IMAGE_NAME}:<< parameters.tag >>
+      - run:
+          name: Push latest image to DockerHub
+          command: |
+            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            docker push ${IMAGE_NAME}:<< parameters.tag >>
 jobs:
   build:
-    docker:
-      - image: circleci/golang:1.13
+    executor: docker-publisher
     steps:
       - checkout
       - setup_remote_docker:
           docker_layer_caching: true
       - run: 
           name: Build image
-          command: make
-
+          command: docker build -t ${IMAGE_NAME}:${CIRCLE_SHA1} .
+      - save_image
+      - persist_to_workspace:
+          name: Persist images to workspace
+          root: /tmp
+          paths:
+            - images
+  push-latest:
+    executor: docker-publisher
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - attach_workspace:
+          name: Restore workspace
+          at: /tmp
+      - push_image:
+          tag: "latest"
+  push-edge:
+    executor: docker-publisher
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - attach_workspace:
+          name: Restore workspace
+          at: /tmp
+      - push_image:
+          tag: "edge"
+  push-tags:
+    executor: docker-publisher
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - attach_workspace:
+          name: Restore workspace
+          at: /tmp
+      - push_image:
+          tag: "${CIRCLE_TAG}"
