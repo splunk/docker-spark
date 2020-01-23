@@ -38,7 +38,8 @@ commands:
   save_image:
     description: "Save image"
     steps:
-      - run: 
+      - run:
+          name: "Save image"
           command: |
             mkdir -p /tmp/images
             docker image save -o /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar ${IMAGE_NAME}:${CIRCLE_SHA1}
@@ -51,7 +52,7 @@ commands:
       - run: 
           name: Load image
           command: |
-            docker load /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar
+            docker load -i /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar
       - run: 
           name: Tag image
           command: |
