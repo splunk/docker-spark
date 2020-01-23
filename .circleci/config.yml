@@ -97,7 +97,7 @@ jobs:
           at: /tmp
       - push_image:
           tag: "edge"
-  push-tags:
+  push-release:
     executor: docker-publisher
     steps:
       - setup_remote_docker:
