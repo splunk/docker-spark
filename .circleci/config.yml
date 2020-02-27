@@ -5,9 +5,13 @@ workflows:
   build-and-push:
     jobs:
       - build
+      - vulnerability-scan:
+          requires:
+            - build
       - push-latest:
           requires:
             - build
+            - vulnerability-scan
           filters:
             branches:
               only:
@@ -15,6 +19,7 @@ workflows:
       - push-edge:
           requires:
             - build
+            - vulnerability-scan
           filters:
             branches:
               only:
@@ -22,6 +27,7 @@ workflows:
       - push-release:
           requires:
             - build
+            - vulnerability-scan
           filters:
             tags:
               only: /^\d+\.\d+\.\d+/
@@ -34,6 +40,12 @@ executors:
       IMAGE_FILENAME: splunk-spark
     docker:
       - image: circleci/buildpack-deps:buster
+  classic-machine:
+    environment:
+      IMAGE_NAME: splunk/spark
+      IMAGE_FILENAME: splunk-spark
+    machine:
+      image: circleci/classic:latest
 commands:
   save_image:
     description: "Save image"
@@ -43,16 +55,19 @@ commands:
           command: |
             mkdir -p /tmp/images
             docker image save -o /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar ${IMAGE_NAME}:${CIRCLE_SHA1}
+  load_image:
+    description: "Load image"
+    steps:
+      - run:
+          name: "Load image"
+          command: docker load -i /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar
   push_image:
     description: "Load, tag and push an image"
     parameters:
       tag:
         type: string
     steps:
-      - run: 
-          name: Load image
-          command: |
-            docker load -i /tmp/images/${IMAGE_FILENAME}-${CIRCLE_SHA1}.tar
+      - load_image
       - run: 
           name: Tag image
           command: |
@@ -78,6 +93,26 @@ jobs:
           root: /tmp
           paths:
             - images
+  vulnerability-scan:
+    executor: classic-machine
+    steps:
+      - checkout
+      - attach_workspace:
+          name: Restore workspace
+          at: /tmp
+      - load_image
+      - run:
+          name: Setup clair scanner
+          command: make setup_clair_scanner
+      - run:
+          name: Scan container image
+          command: make run_clair_scan
+      - run:
+          name: Stop clair scanner
+          command: make stop_clair_scanner
+      - store_artifacts:
+          name: Save scan results as artifacts
+          path: clair-scanner-logs
   push-latest:
     executor: docker-publisher
     steps:
