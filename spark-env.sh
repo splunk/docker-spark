@@ -41,15 +41,26 @@ else
     SPARK_WORKER_CORES=$SYSTEM_CORES
 fi
 
-echo "export SPARK_PID_DIR=/opt/spark
-export SPARK_WORKER_CORES=$SPARK_WORKER_CORES
-export SPARK_WORKER_MEMORY=$SPARK_WORKER_MEMORY
+echo "SPARK_WORKER_CORES=$SPARK_WORKER_CORES"
+echo "SPARK_WORKER_MEMORY=$SPARK_WORKER_MEMORY"
+export SPARK_WORKER_CORES
+export SPARK_WORKER_MEMORY
+export SPARK_PID_DIR=/opt/spark
 export SPARK_DAEMON_MEMORY=1g
 export SPARK_NO_DAEMONIZE=1
-" >> /opt/spark/conf/spark-env.sh
 
-echo "spark.eventLog.dir file:///opt/spark/eventlog
-spark.history.fs.logDirectory file:///opt/spark/eventlog
-" >> /opt/spark/conf/spark-defaults.conf
+if [[ "x$SPARK_BIND_REVERSE_LOOKUP" != "x" ]]; then
+    LOCAL_IP=`$SPARK_HOME/bin/dig +short $(hostname -f)`
+    while [[ "x$LOCAL_IP" = "x" ]]; do
+        sleep 1
+        LOCAL_IP=`$SPARK_HOME/bin/dig +short $(hostname -f)`
+    done
+    export SPARK_LOCAL_IP=$LOCAL_IP
+    echo "SPARK_LOCAL_IP=$SPARK_LOCAL_IP"
+    if [ "x$SPLUNK_ROLE" = "xsplunk_spark_master" ]; then
+        export SPARK_MASTER_HOST=$LOCAL_IP
+        echo "SPARK_MASTER_HOST=$SPARK_MASTER_HOST"
+    fi
+fi
 
-cat /opt/spark/conf/spark-env.sh
+

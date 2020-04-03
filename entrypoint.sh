@@ -1,6 +1,8 @@
 #!/bin/sh
 
-$SPARK_HOME/setenv.sh
+echo "spark.eventLog.dir file://${SPARK_HOME}/logs
+spark.history.fs.logDirectory file://${SPARK_HOME}/logs
+" > $SPARK_HOME/conf/spark-defaults.conf
 
 if [ "x$SPLUNK_ROLE" = "xsplunk_spark_master" ]
 then
