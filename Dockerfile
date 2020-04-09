@@ -13,7 +13,27 @@
 # limitations under the License.
 
 #
-# Prepare new files in a temporary base image
+# Build a small dig binary
+#
+FROM registry.access.redhat.com/ubi8/ubi-minimal as dig
+ARG LIBUV_URL=https://github.com/libuv/libuv/archive/v1.35.0.tar.gz
+ARG BIND_URL=https://downloads.isc.org/isc/bind9/9.16.1/bind-9.16.1.tar.xz
+RUN microdnf install -y wget gcc tar gzip xz automake libtool make diffutils openssl openssl-devel
+RUN mkdir /tmp/libuv /tmp/bind
+RUN wget -q -O - $LIBUV_URL |tar --strip-components=1 -C /tmp/libuv -xvzf -
+RUN wget -q -O - $BIND_URL |tar --strip-components=1 -C /tmp/bind -xvJf -
+RUN cd /tmp/libuv \
+    && ./autogen.sh \
+    && ./configure --enable-static --disable-shared \
+    && make install
+RUN cd /tmp/bind \
+    && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure --enable-static --without-python --disable-linux-caps
+RUN cd /tmp/bind/lib && make
+RUN cd /tmp/bind/bin/dig && make && strip dig
+
+
+#
+# Prepare JDK and Spark files in a temporary base image
 #
 FROM registry.access.redhat.com/ubi8/ubi-minimal as package
 
@@ -26,7 +46,7 @@ RUN microdnf update && microdnf install -y wget tar gzip
 # download and install Spark
 RUN wget -O /tmp/spark.tgz $SPARK_URL
 RUN tar -C /tmp -zxvf /tmp/spark.tgz
-RUN mkdir -p /opt/spark /opt/spark/eventlog
+RUN mkdir -p /opt/spark /opt/spark/logs
 RUN mv /tmp/spark-*/* /opt/spark
 
 # download and install JDK (JRE)
@@ -37,9 +57,12 @@ RUN mv /tmp/jdk*-jre/* /opt/jdk
 
 # add entrypoint and update permissions
 ADD entrypoint.sh /opt/spark/entrypoint.sh
-ADD setenv.sh /opt/spark/setenv.sh
-RUN chmod a+x /opt/spark/entrypoint.sh /opt/spark/setenv.sh
+ADD spark-env.sh /opt/spark/conf/spark-env.sh
+RUN chmod a+x /opt/spark/entrypoint.sh /opt/spark/conf/spark-env.sh
 RUN chmod -R a+r /opt/spark
+
+# Copy dig binary
+COPY --from=dig --chown=root:root /tmp/bind/bin/dig/dig /opt/spark/bin/dig
 
 
 #
@@ -49,7 +72,7 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal
 LABEL name="splunk" \
       maintainer="support@splunk.com" \
       vendor="splunk" \
-      version="0.0.2" \
+      version="0.0.3" \
       release="1" \
       summary="Spark image for Splunk DFS" \
       description="Custom image that includes JRE and Spark"
@@ -74,6 +97,9 @@ ENV SPLUNK_HOME=/opt/splunk \
 ARG UID=41812
 ARG GID=41812
 
+# copy package files
+COPY --from=package --chown=root:root /opt /opt
+
 # add splunk user and group
 RUN mkdir /licenses \
     && curl -o /licenses/apache-2.0.txt https://www.apache.org/licenses/LICENSE-2.0.txt \
@@ -82,14 +108,14 @@ RUN mkdir /licenses \
     && microdnf update && microdnf install -y --nodocs shadow-utils hostname \
     && groupadd -r -g ${GID} ${SPLUNK_GROUP} \
     && useradd -r -m -u ${UID} -g ${GID} -s /sbin/nologin -d ${SPLUNK_HOME} ${SPLUNK_USER} \
-    && mkdir -p /mnt/jdk /mnt/spark \
-    && chown -R splunk.splunk ${SPLUNK_HOME} /mnt/jdk /mnt/spark
-
-# copy package files
-COPY --from=package --chown=splunk:splunk /opt /opt
+    && mkdir -p /mnt/jdk /mnt/spark ${SPARK_HOME}/logs ${SPARK_HOME}/work \
+    && touch ${SPARK_HOME}/conf/spark-defaults.conf \
+    && chown -R splunk.splunk ${SPLUNK_HOME} /mnt/jdk /mnt/spark ${SPARK_HOME}/logs ${SPARK_HOME}/work ${SPARK_HOME}/conf/spark-defaults.conf
 
 # run as user splunk
 USER ${SPLUNK_USER}
 WORKDIR ${SPLUNK_HOME}
+VOLUME /opt/spark/work
+VOLUME /opt/spark/logs
 
 ENTRYPOINT /opt/spark/entrypoint.sh
