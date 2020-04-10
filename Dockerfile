@@ -15,7 +15,7 @@
 #
 # Build a small dig binary
 #
-FROM registry.access.redhat.com/ubi8/ubi-minimal as dig
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.1-407 as dig
 ARG LIBUV_URL=https://github.com/libuv/libuv/archive/v1.35.0.tar.gz
 ARG BIND_URL=https://downloads.isc.org/isc/bind9/9.16.1/bind-9.16.1.tar.xz
 RUN microdnf install -y wget gcc tar gzip xz automake libtool make diffutils openssl openssl-devel
